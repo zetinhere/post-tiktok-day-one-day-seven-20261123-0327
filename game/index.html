@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DOT DASH — a tiny game, day one to day seven</title>
+<style>
+  body { margin: 0; background: #07070f; display: flex; flex-direction: column;
+         align-items: center; font-family: monospace; color: #ddd; }
+  canvas { width: min(92vw, 400px); aspect-ratio: 9 / 16; background: #0a0a18;
+           touch-action: none; margin-top: 12px; border: 1px solid #222; }
+  p { max-width: 420px; text-align: center; line-height: 1.5; }
+  button { background: #19f2e8; border: 0; padding: 10px 22px; font: inherit;
+           font-weight: bold; cursor: pointer; margin: 6px; }
+</style>
+</head>
+<body>
+<canvas id="game" width="1080" height="1920"></canvas>
+<p>DOT DASH — steer with mouse, touch or arrow keys. Dodge the blocks,
+grab the coins. Day 1 was just ship, blocks and score; day 7 has a week of
+daily updates behind it. Built by an agent for make.fun's "Day one, day seven"
+bounty.</p>
+<button id="dayBtn">Play day 7</button>
+<button id="againBtn">Restart</button>
+<script type="module">
+import { W, H, createSim, stepSim, drawSim, pathX } from './game.js';
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let day = 7;
+let sim = createSim(day);
+let manualX = null; // pointer/keyboard override; null = scripted path
+let last = performance.now();
+
+// Canvas painter: the same interface the Node renderer uses.
+const painter = {
+  fillRect(x, y, w, h, c) {
+    ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+    ctx.fillRect(x, y, w, h);
+  },
+  circle(cx, cy, r, c) {
+    ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.2832); ctx.fill();
+  },
+  ring(cx, cy, r, c, w) {
+    ctx.strokeStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+    ctx.lineWidth = w;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.2832); ctx.stroke();
+  },
+  tri(a, b, c2, col) {
+    ctx.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c2[0], c2[1]);
+    ctx.closePath(); ctx.fill();
+  },
+  text(str, x, y, scale, c, align) {
+    // Browser text: real canvas font, same words the bitmap font draws.
+    ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+    ctx.font = `bold ${scale * 7}px monospace`;
+    ctx.textAlign = align || 'left';
+    ctx.textBaseline = 'top';
+    const lines = str.split('\n');
+    lines.forEach((line, i) => ctx.fillText(line.toUpperCase(), x, y + i * scale * 9));
+  },
+  dim(a) {
+    ctx.fillStyle = `rgba(8,8,18,${a})`;
+    ctx.fillRect(0, 0, W, H);
+  },
+};
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (!sim.over) {
+    // Player control: pointer/keys override the scripted path.
+    const before = sim.t;
+    stepSim(sim, dt);
+    if (manualX !== null) sim.px = manualX;
+  }
+  ctx.clearRect(0, 0, W, H);
+  drawSim(painter, sim);
+  if (sim.over) {
+    painter.dim(0.45);
+    painter.text('GAME OVER', W / 2, H / 2 - 60, 10, [255, 255, 255], 'center');
+    painter.text(`SCORE ${sim.score}`, W / 2, H / 2 + 60, 6, [255, 210, 63], 'center');
+  }
+  requestAnimationFrame(frame);
+}
+
+function pointerX(e) {
+  const r = canvas.getBoundingClientRect();
+  const cx = (e.clientX - r.left) / r.width * W;
+  return Math.max(100, Math.min(980, cx));
+}
+canvas.addEventListener('pointermove', (e) => { manualX = pointerX(e); });
+canvas.addEventListener('pointerdown', (e) => { manualX = pointerX(e); });
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') manualX = Math.max(100, (manualX ?? sim.px) - 46);
+  if (e.key === 'ArrowRight') manualX = Math.min(980, (manualX ?? sim.px) + 46);
+});
+
+document.getElementById('dayBtn').addEventListener('click', (e) => {
+  day = day === 7 ? 1 : 7;
+  e.target.textContent = day === 7 ? 'Play day 1' : 'Play day 7';
+  sim = createSim(day);
+  manualX = null;
+});
+document.getElementById('againBtn').addEventListener('click', () => {
+  sim = createSim(day);
+  manualX = null;
+});
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
